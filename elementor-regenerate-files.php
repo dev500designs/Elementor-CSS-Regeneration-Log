@@ -33,6 +33,9 @@ function elementor_log_page() {
     // Split the content into lines
     $log_entries = explode(PHP_EOL, trim($log_content));
 
+    // Reverse the order of the log entries
+    $log_entries = array_reverse($log_entries);
+
     // Start output buffering
     ob_start();
     ?>
@@ -64,6 +67,7 @@ function elementor_log_page() {
     // End output buffering and display the content
     echo ob_get_clean();
 }
+
 
 // Add the logging functionality to the Elementor save action
 add_action('elementor/editor/after_save', 'qcwp_regenerate_css', 10, 2);
