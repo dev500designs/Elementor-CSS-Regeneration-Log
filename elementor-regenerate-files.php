@@ -1,165 +1,100 @@
 <?php
 /**
- * Plugin Name: Elementor CSS Regeneration Log
+ * Plugin Name: Elementor Log
  * Plugin URI: https://500designs.com
- * Description: A plugin that allow to Regenerate File and Data when an Elementor Template / Post is updated. It will log and display Elementor CSS regeneration events in the WordPress admin.
+ * Description: This plugin logs Elementor CSS cache regeneration events and displays them in the WordPress admin panel.
  * Version: 1.0.0
  * Author: Mauro Carrera
  * Author URI: https://500designs.com
  * License: GPL-2.0+
  * License URI: http://www.gnu.org/licenses/gpl-2.0.txt
- * Text Domain: elementor-css-regeneration-log
  */
 
-// Exit if accessed directly.
-if (!defined('ABSPATH')) {
-    exit;
+// Add action to create the admin menu item
+add_action('admin_menu', 'elementor_log_menu');
+
+function elementor_log_menu() {
+    // Add a new menu item under the Tools menu
+    add_management_page('Elementor Log', 'Elementor Log', 'manage_options', 'elementor-log', 'elementor_log_page');
 }
-// Add the action hook for Elementor
-add_action('elementor/editor/after_save', 'qcwp_regenerate_css', 10, 2);
 
-// Add the action hook for the custom admin page
-add_action('admin_menu', 'qcwp_elementor_log_admin_page');
-
-// Function to create the custom admin page
-function qcwp_elementor_log_admin_page() {
-    add_menu_page(
-        'CSS Reg Log',
-        'CSS Reg Log',
-        'manage_options',
-        'elementor-log',
-        'qcwp_display_elementor_log_page'
-    );
-}
-    
-
-// Function to display the custom admin page
-function qcwp_display_elementor_log_page() {
-    // Check for clear log action
-    if (isset($_POST['clear_log']) && check_admin_referer('clear_elementor_log')) {
-        qcwp_clear_elementor_log();
-        echo '<div class="notice notice-success is-dismissible" style="margin-top:10px;margin-bottom:10px;margin-left:0px"><p>Log has been cleared.</p></div>';
+function elementor_log_page() {
+    // Check if the user has the required capability
+    if (!current_user_can('manage_options')) {
+        wp_die(__('You do not have sufficient permissions to access this page.'));
     }
 
+    // Set the log file path
+    $log_file = WP_CONTENT_DIR . '/elementor_log.txt';
 
-    $log_file = plugin_dir_path(__FILE__) . 'elementor_log.txt';
-    $log_entries = array();
+    // Read the log file content
+    $log_content = file_get_contents($log_file);
 
-    if (file_exists($log_file)) {
-        $log_content = file_get_contents($log_file);
-        $log_lines = explode(PHP_EOL, trim($log_content));
+    // Split the content into lines
+    $log_entries = explode(PHP_EOL, trim($log_content));
 
-        foreach ($log_lines as $line) {
-            $entry_parts = explode(' - ', $line, 2);
-            $log_entries[] = array(
-                'timestamp' => $entry_parts[0],
-                'message' => $entry_parts[1]
-            );
-        }
-
-        echo '<h2 style="text-align:center;">Elementor CSS Regeneration Logs</h2>';
-          echo '<p style="text-align:center;">This log will save the latest 50 CSS Regenerations and will purge automatically.</p>';
-
-        // Sort log entries in descending order (latest to oldest)
-        usort($log_entries, function ($a, $b) {
-            return strtotime($b['timestamp']) - strtotime($a['timestamp']);
-        });
-
-        // Limit the number of displayed log entries
-        $log_entries = array_slice($log_entries, 0, 10);
-
-        // Display clear log button
-        echo '<form method="post" style="margin-bottom: 1rem;">';
-        wp_nonce_field('clear_elementor_log');
-        echo '<input type="submit" name="clear_log" class="button" value="Clear Log" style="margin-top:20px;margin-bottom:20px;">';
-        echo '</form>';
-
- // Display log in a table
-// Display log in a table
-echo '<table class="widefat">';
-echo '<thead><tr><th>Timestamp</th><th>Message</th><th>Post ID</th><th>Post Title</th><th>User</th></tr></thead>';
-echo '<tbody>';
-
-foreach ($log_entries as $entry) {
-    $entry_parts = explode(' - ', $entry['message'], 3); // Split the message into separate parts
-    $message = $entry_parts[0];
-    $post_info_parts = explode(' | ', $entry_parts[1]); // Split the post and user information
-
-    $post_id = substr($post_info_parts[0], 8); // Remove the "Post ID: " prefix
-    $post_title = substr($post_info_parts[1], 12); // Remove the "Post Title: " prefix
-    $user_display_name = substr($post_info_parts[2], 6); // Remove the "User: " prefix
-
-    echo '<tr>';
-       echo '<tr>';
-    echo '<td>' . esc_html($entry['timestamp']) . '</td>';
-    echo '<td>' . esc_html($message) . '</td>';
-    echo '<td>' . esc_html($post_id) . '</td>';
-    echo '<td>' . esc_html($post_title) . '</td>';
-    echo '<td>' . esc_html($user_display_name) . '</td>';
-    echo '</tr>';
+    // Start output buffering
+    ob_start();
+    ?>
+    <div class="wrap">
+        <h1>Elementor Log</h1>
+        <table class="wp-list-table widefat fixed striped">
+            <thead>
+                <tr>
+                    <th scope="col">Timestamp</th>
+                    <th scope="col">Message</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php foreach ($log_entries as $entry) : ?>
+                    <?php
+                    // Split the entry into timestamp and message
+                    list($timestamp, $message) = explode('] ', $entry, 2);
+                    $timestamp = trim($timestamp, '[');
+                    ?>
+                    <tr>
+                        <td><?php echo $timestamp; ?></td>
+                        <td><?php echo $message; ?></td>
+                    </tr>
+                <?php endforeach; ?>
+            </tbody>
+        </table>
+    </div>
+    <?php
+    // End output buffering and display the content
+    echo ob_get_clean();
 }
 
-echo '</tbody>';
-echo '</table>';
-
-
-    } else {
-        echo '<p>No log entries found.</p>';
-    }
-}
-
-// Function to clear the log
-function qcwp_clear_elementor_log() {
-    $log_file = plugin_dir_path(__FILE__) . 'elementor_log.txt';
-    file_put_contents($log_file, '');
-}
-
-function qcwp_regenerate_css($post_id) {
+// Add the logging functionality to the Elementor save action
+add_action('elementor/editor/after_save', 'qcwp_regenerate_css');
+function qcwp_regenerate_css(){
     // Make sure that Elementor loaded and the hook fired
-    if (did_action('elementor/loaded')) {
+    if ( did_action( 'elementor/loaded' ) ) {
         // Automatically purge and regenerate the Elementor CSS cache
         \Elementor\Plugin::instance()->files_manager->clear_cache();
         \Elementor\Plugin::instance()->posts_css_manager->clear_cache();
 
-        // Get the current user ID
-        $user_id = get_current_user_id();
-
-        // Log the event with the post ID and user ID
-        qcwp_log_elementor_event('CSS regenerated', $post_id, $user_id);
+        // Log the event
+        log_elementor_event('Elementor CSS cache regenerated');
     }
 }
 
-function qcwp_log_elementor_event($message, $post_id, $user_id) {
-    $log_file = plugin_dir_path(__FILE__) . 'elementor_log.txt';
-    $current_time = date('Y-m-d H:i:s');
+function log_elementor_event($message) {
+    // Set the log file path
+    $log_file = WP_CONTENT_DIR . '/elementor_log.txt';
 
-    // Get the post title and user display name
-    $post_title = get_the_title($post_id);
-    $user = get_user_by('id', $user_id);
-    $user_display_name = $user->display_name;
+    // Read the current log entries
+    $log_entries = file($log_file, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
 
-    // Format the log message with the post ID, title, and user display name
-    $log_message = "{$current_time} - {$message} - Post ID: {$post_id} | Post Title: {$post_title} | User: {$user_display_name}" . PHP_EOL;
+// Add the new entry
+$log_entries[] = '[' . date('Y-m-d H:i:s') . '] ' . $message;
 
-    $log_entries = array();
+// Keep only the last 50 entries
+$log_entries = array_slice($log_entries, -50);
 
-    // Read existing log entries
-    if (file_exists($log_file)) {
-        $log_content = file_get_contents($log_file);
-        $log_lines = explode(PHP_EOL, trim($log_content));
-
-        foreach ($log_lines as $line) {
-            $log_entries[] = $line;
-        }
-    }
-
-    // Limit the log entries to 50 (excluding the new entry)
-    $log_entries = array_slice($log_entries, -49);
-
-    // Add the new entry to the log entries
-    array_unshift($log_entries, $log_message);
-
-    // Write the limited log entries back to the log file
-    file_put_contents($log_file, implode(PHP_EOL, $log_entries));
+// Save the updated log entries
+file_put_contents($log_file, implode(PHP_EOL, $log_entries) . PHP_EOL);
 }
+
+
 
