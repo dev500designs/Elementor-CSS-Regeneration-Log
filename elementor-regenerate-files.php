@@ -66,16 +66,20 @@ function elementor_log_page() {
 }
 
 // Add the logging functionality to the Elementor save action
-add_action('elementor/editor/after_save', 'qcwp_regenerate_css');
-function qcwp_regenerate_css(){
+add_action('elementor/editor/after_save', 'qcwp_regenerate_css', 10, 2);
+function qcwp_regenerate_css($post_id, $editor_data){
     // Make sure that Elementor loaded and the hook fired
     if ( did_action( 'elementor/loaded' ) ) {
         // Automatically purge and regenerate the Elementor CSS cache
         \Elementor\Plugin::instance()->files_manager->clear_cache();
         \Elementor\Plugin::instance()->posts_css_manager->clear_cache();
 
+        // Get the post title
+        $post = get_post($post_id);
+        $post_title = $post->post_title;
+
         // Log the event
-        log_elementor_event('Elementor CSS cache regenerated');
+        log_elementor_event("Elementor CSS cache regenerated for the page: {$post_title}");
     }
 }
 
